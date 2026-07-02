@@ -18,10 +18,18 @@ are co-located with `config.toml`: their paths in the TOML are resolved relative
 the config file's directory, so one folder holds `config.toml` + `host_key.pem` +
 `authorized_keys`.
 
-## Build
+## Install
 
-```sh
+```bash
+go install github.com/open-mcp-ai/termcp-relay@latest
+termcp-relay --config config.toml
+```
+
+## Build from source
+
+```bash
 go build -o termcp-relay .
+./termcp-relay --config config.toml
 ```
 
 ## Configure
