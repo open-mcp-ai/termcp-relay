@@ -259,11 +259,9 @@ detected the same way as termcp's `detect_shell`:
 - **Unix**: `$SHELL` (if present in `PATH`), else `/bin/zsh` -> `/bin/bash` ->
   `/bin/sh` (via `stat`)
 
-Override with `server.shell` (whitespace-split into argv). Interactive shells are
-spawned bare — no flags are injected — so shells that reject foreign options
-(dash/busybox `/bin/sh` does not know bash's `+o histexpand`) start cleanly.
-Explicit commands are passed through untouched as well, so client-provided `!`
-is preserved verbatim.
+Override with `server.shell` (whitespace-split into argv). Shell options such as
+history expansion are not injected by the daemon — put them in the user's shell
+config (e.g. `set +o histexpand` in `~/.bashrc`) if needed.
 
 ## Port forwarding
 
