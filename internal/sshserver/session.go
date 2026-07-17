@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -30,27 +29,14 @@ func sshSignalToOSSig(sig ssh.Signal) os.Signal {
 	}
 }
 
-// disableHistoryExpansion prepends shell-specific flags to suppress ! history
-// expansion, matching termcp's built-in sshd behavior.
-func disableHistoryExpansion(args []string) []string {
-	if len(args) == 0 {
-		return args
-	}
-	switch filepath.Base(args[0]) {
-	case "zsh":
-		return append([]string{args[0], "-o", "NO_BANG_HIST"}, args[1:]...)
-	case "bash", "sh":
-		return append([]string{args[0], "+o", "histexpand"}, args[1:]...)
-	default:
-		return args
-	}
-}
-
 // defaultShellArgs resolves the shell argv when the client requests an
 // interactive shell (no command). The server.shell override wins; otherwise
 // the platform default is detected. On Windows the detection order mirrors
 // termcp's detect_shell tool (pwsh -> powershell -> cmd -> %ComSpec%); on Unix
 // $SHELL is honored (termcp parity).
+//
+// Shell options such as history expansion are left to the user's shell config
+// (~/.bashrc, ~/.zshrc, etc.). The daemon does not inject +o histexpand / NO_BANG_HIST.
 func (s *Server) defaultShellArgs() []string {
 	if strings.TrimSpace(s.shellOverride) != "" {
 		return strings.Fields(s.shellOverride)
@@ -82,10 +68,8 @@ func (s *Server) defaultShellArgs() []string {
 func (s *Server) handleSession(sess ssh.Session) {
 	cmdArgs := sess.Command()
 	if len(cmdArgs) == 0 {
-		// Interactive shell: detect the default shell and suppress ! history
-		// expansion. Explicit commands skip the suppression so client-provided
-		// ! in arguments is preserved verbatim.
-		cmdArgs = disableHistoryExpansion(s.defaultShellArgs())
+		// Interactive shell: start the configured/detected shell as-is.
+		cmdArgs = s.defaultShellArgs()
 	}
 
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)

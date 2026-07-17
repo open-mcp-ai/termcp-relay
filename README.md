@@ -96,9 +96,9 @@ detected the same way as termcp's `detect_shell`:
 - **Unix**: `$SHELL` (if present in `PATH`), else `/bin/zsh` -> `/bin/bash` ->
   `/bin/sh` (via `stat`)
 
-Override with `server.shell` (whitespace-split into argv). `!` history expansion
-is suppressed for interactive shells (zsh `-o NO_BANG_HIST`, bash/sh `+o histexpand`);
-explicit commands are left untouched so client-provided `!` is preserved verbatim.
+Override with `server.shell` (whitespace-split into argv). Shell options such as
+history expansion are not injected by the daemon — put them in the user's shell
+config (e.g. `set +o histexpand` in `~/.bashrc`) if needed.
 
 ## Port forwarding
 
