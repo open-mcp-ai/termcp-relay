@@ -29,3 +29,9 @@ config.toml
 # Secrets / private
 .env
 .claude/
+
+# Cross-compiled release output
+/dist/
+
+# Service runtime logs (default --log-file location is next to config.toml)
+*.log

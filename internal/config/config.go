@@ -18,13 +18,14 @@ import (
 
 // ServerConfig holds SSH server / listener settings.
 type ServerConfig struct {
-	Addr             string `toml:"addr"`
-	HostKey          string `toml:"host_key"`
-	Shell            string `toml:"shell"`
-	Banner           string `toml:"banner"`
-	LogLevel         string `toml:"log_level"`
-	AllowLocalFwd   bool   `toml:"allow_local_forward"`
-	AllowRemoteFwd  bool   `toml:"allow_remote_forward"`
+	Addr           string `toml:"addr"`
+	HostKey        string `toml:"host_key"`
+	Shell          string `toml:"shell"`
+	WorkDir        string `toml:"work_dir"`
+	Banner         string `toml:"banner"`
+	LogLevel       string `toml:"log_level"`
+	AllowLocalFwd  bool   `toml:"allow_local_forward"`
+	AllowRemoteFwd bool   `toml:"allow_remote_forward"`
 }
 
 // AuthConfig holds authentication settings.
@@ -39,7 +40,7 @@ type AuthConfig struct {
 type Config struct {
 	Server    ServerConfig `toml:"server"`
 	Auth      AuthConfig   `toml:"auth"`
-	configDir string // absolute dir of the TOML file, for path resolution
+	configDir string       // absolute dir of the TOML file, for path resolution
 }
 
 // Defaults returns a Config populated with sensible defaults, ready to be
@@ -47,9 +48,9 @@ type Config struct {
 func Defaults() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Addr:            "0.0.0.0:2222",
-			HostKey:         "host_key.pem",
-			LogLevel:        "info",
+			Addr:           "0.0.0.0:2222",
+			HostKey:        "host_key.pem",
+			LogLevel:       "info",
 			AllowLocalFwd:  true,
 			AllowRemoteFwd: true,
 		},
@@ -95,6 +96,9 @@ func (c *Config) normalize() {
 	// Resolve relative paths against the config file's directory so the key
 	// files live alongside config.toml ("密钥文件也放里面").
 	c.Server.HostKey = c.resolve(c.Server.HostKey)
+	if strings.TrimSpace(c.Server.WorkDir) != "" {
+		c.Server.WorkDir = c.resolve(c.Server.WorkDir)
+	}
 	if strings.TrimSpace(c.Auth.AuthorizedKeys) != "" {
 		c.Auth.AuthorizedKeys = c.resolve(c.Auth.AuthorizedKeys)
 	}
@@ -177,6 +181,11 @@ host_key = "host_key.pem"
 # Override the interactive shell, whitespace-split into argv, e.g. "pwsh -NoLogo".
 # Leave empty to auto-detect: pwsh -> powershell -> cmd on Windows; $SHELL on Unix.
 shell = ""
+
+# Working directory for SSH sessions. If empty, falls back to the user's home
+# directory (like nssm / normal SSH logins). Relative paths resolve relative to
+# this config file.
+work_dir = ""
 
 # Banner shown to the client before authentication.
 banner = "termcp-relay"

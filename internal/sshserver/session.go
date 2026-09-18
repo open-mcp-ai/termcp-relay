@@ -89,6 +89,9 @@ func (s *Server) handleSession(sess ssh.Session) {
 	}
 
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	if s.workDir != "" {
+		cmd.Dir = s.workDir
+	}
 
 	// Forward signals from the client to the local process.
 	sigCh := make(chan ssh.Signal, 8)
@@ -138,9 +141,14 @@ func (s *Server) handleSession(sess ssh.Session) {
 }
 
 // handleSftpSubsystem is registered as the "sftp" SubsystemHandler on the
-// server. It mirrors termcp's built-in sshd SFTP support.
-func handleSftpSubsystem(sess ssh.Session) {
-	srv, err := sftp.NewServer(sess)
+// server. It mirrors termcp's built-in sshd SFTP support, rooted at the same
+// working directory interactive sessions use.
+func (s *Server) handleSftpSubsystem(sess ssh.Session) {
+	var opts []sftp.ServerOption
+	if s.workDir != "" {
+		opts = append(opts, sftp.WithServerWorkingDirectory(s.workDir))
+	}
+	srv, err := sftp.NewServer(sess, opts...)
 	if err != nil {
 		slog.Error("sftp server start", "err", err)
 		_ = sess.Exit(1)

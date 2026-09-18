@@ -19,6 +19,11 @@ host_key = "host_key.pem"
 # Leave empty to auto-detect: pwsh -> powershell -> cmd on Windows; $SHELL on Unix.
 shell = ""
 
+# Working directory for SSH sessions. If empty, falls back to the user's home
+# directory (like nssm / normal SSH logins). Relative paths resolve relative to
+# this config file.
+work_dir = ""
+
 # Banner shown to the client before authentication.
 banner = "termcp-relay"
 

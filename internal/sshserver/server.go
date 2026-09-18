@@ -25,6 +25,7 @@ type Options struct {
 	HostKeyPath    string
 	Auth           *Auth
 	ShellOverride  string
+	WorkDir        string
 	Banner         string
 	AllowLocalFwd  bool
 	AllowRemoteFwd bool
@@ -34,6 +35,7 @@ type Options struct {
 type Server struct {
 	opts          Options
 	shellOverride string
+	workDir       string
 	auth          *Auth
 
 	server   *ssh.Server
@@ -54,6 +56,7 @@ func New(opts Options) (*Server, error) {
 	s := &Server{
 		opts:          opts,
 		shellOverride: strings.TrimSpace(opts.ShellOverride),
+		workDir:       strings.TrimSpace(opts.WorkDir),
 		auth:          opts.Auth,
 	}
 
@@ -64,7 +67,9 @@ func New(opts Options) (*Server, error) {
 			s.handleSession(sess)
 		},
 		SubsystemHandlers: map[string]ssh.SubsystemHandler{
-			"sftp": handleSftpSubsystem,
+			"sftp": func(sess ssh.Session) {
+				s.handleSftpSubsystem(sess)
+			},
 		},
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"session":      ssh.DefaultSessionHandler,
