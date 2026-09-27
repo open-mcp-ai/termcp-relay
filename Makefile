@@ -1,13 +1,35 @@
-.PHONY: build clean dist
+# termcp-relay — build all platforms, test, clean.
+#
+#   make        cross-compile every supported platform into dist/
+#   make test   vet + run all tests (same commands CI runs)
+#   make clean  remove build output
+#
+# Needs GNU make and a POSIX shell (Git Bash / MSYS on Windows).
 
-# 构建目标
-build:
-	mkdir -p dist
-	go build -o dist/termcp-relay-$(shell go env GOOS)-$(shell go env GOARCH).exe
+PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
+DIST      := dist
 
-# 清理构建文件
+# Stamped into main.version; falls back to "dev" outside a git checkout.
+VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS   := -s -w -X main.version=$(VERSION)
+
+.PHONY: all test clean
+
+all:
+	@mkdir -p $(DIST)
+	@set -e; for p in $(PLATFORMS); do \
+		os=$${p%/*}; arch=$${p#*/}; \
+		out="$(DIST)/termcp-relay-$$os-$$arch"; \
+		[ "$$os" = windows ] && out="$$out.exe" || true; \
+		echo "  $$out"; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 \
+			go build -trimpath -ldflags "$(LDFLAGS)" -o "$$out" .; \
+	done
+	@echo "built $(VERSION) for: $(PLATFORMS)"
+
+test:
+	go vet ./...
+	go test ./... -count=1 -timeout 120s
+
 clean:
-	rm -r dist
-
-# 构建并清理旧文件
-dist: clean build
+	rm -rf $(DIST) termcp-relay termcp-relay.exe
