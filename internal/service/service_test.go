@@ -4,6 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	kservice "github.com/kardianos/service"
@@ -97,6 +98,13 @@ func TestKServicConfigNameOverride(t *testing.T) {
 // required): a service name that does not exist must report installed=false
 // rather than an error. Skipped where no service manager is available.
 func TestQueryUninstalledService(t *testing.T) {
+	// kservice's sysv backend propagates the raw `service <name> status` exit
+	// status, so an unknown unit is indistinguishable from a query failure
+	// (systemd/launchd/Windows report ErrNotInstalled properly). Skip there
+	// rather than assert a contract that backend cannot honor.
+	if sys := kservice.ChosenSystem(); sys != nil && strings.HasPrefix(sys.String(), "unix-systemv") {
+		t.Skipf("service manager %q reports unknown units as a bare exit status", sys.String())
+	}
 	const name = "termcp-relay-test-definitely-not-installed"
 	st, err := Query(name)
 	if errors.Is(err, kservice.ErrNoServiceSystemDetected) {

@@ -1,7 +1,7 @@
 # termcp-relay — build all platforms, test, clean.
 #
 #   make        cross-compile every supported platform into dist/
-#   make test   run all tests
+#   make test   vet + run all tests (same commands CI runs)
 #   make clean  remove build output
 #
 # Needs GNU make and a POSIX shell (Git Bash / MSYS on Windows).
@@ -28,7 +28,8 @@ all:
 	@echo "built $(VERSION) for: $(PLATFORMS)"
 
 test:
-	go test ./...
+	go vet ./...
+	go test ./... -count=1 -timeout 120s
 
 clean:
 	rm -rf $(DIST) termcp-relay termcp-relay.exe

@@ -107,7 +107,11 @@ func resolveWorkDir(opts Options, cfg *config.Config) string {
 // (…\config\systemprofile, …\ServiceProfiles\LocalService, …), which is not a
 // useful home for an SSH session. Always false elsewhere.
 func isServiceProfile(dir string) bool {
-	lower := strings.ToLower(filepath.ToSlash(strings.TrimSpace(dir)))
+	// Normalize separators by hand: filepath.ToSlash only rewrites the host's own
+	// separator, so on Linux/macOS a Windows path keeps its backslashes and never
+	// matches the checks below. This function must recognize Windows profiles on
+	// every platform (resolveWorkDir calls it unconditionally).
+	lower := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(dir), `\`, "/"))
 	if lower == "" {
 		return true
 	}
