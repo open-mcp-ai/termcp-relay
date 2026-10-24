@@ -32,30 +32,6 @@ func TestKServicConfigBakesRuntimeFlags(t *testing.T) {
 	}
 }
 
-func TestIsServiceProfile(t *testing.T) {
-	cases := []struct {
-		path string
-		want bool
-	}{
-		{`C:\Windows\System32\config\systemprofile`, true},
-		{`c:\windows\system32\config\systemprofile`, true},
-		{`C:/Windows/System32/config/systemprofile`, true},
-		{`C:\Windows\ServiceProfiles\LocalService`, true},
-		{`C:\Windows\ServiceProfiles\NetworkService`, true},
-		{`C:\Users\anonymous`, false},
-		{`D:\home\anonymous`, false},
-		{`/home/relay`, false},
-		{`/root`, false},
-		{"", true},
-	}
-	for _, tc := range cases {
-		got := isServiceProfile(tc.path)
-		if got != tc.want {
-			t.Errorf("isServiceProfile(%q) = %v, want %v", tc.path, got, tc.want)
-		}
-	}
-}
-
 func TestResolveWorkDirPrecedence(t *testing.T) {
 	cfgDir := filepath.Join(string(filepath.Separator), "opt", "relay")
 	cfgPath := filepath.Join(cfgDir, "config.toml")

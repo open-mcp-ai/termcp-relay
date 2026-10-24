@@ -73,6 +73,10 @@ func (s *Server) handleSession(sess ssh.Session) {
 	}
 
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	// Never the relay's own block: a service's environment is a snapshot of the
+	// boot it started in, so a tool installed afterwards would be invisible to
+	// every shell here. sessionEnv re-reads what the machine has now.
+	cmd.Env = sessionEnv()
 	if s.workDir != "" {
 		cmd.Dir = s.workDir
 	}
@@ -98,7 +102,7 @@ func (s *Server) handleSession(sess ssh.Session) {
 			}
 		}()
 		setPtySysProcAttr(cmd)
-		cmd.Env = append(os.Environ(), "TERM="+ppty.Term)
+		cmd.Env = append(cmd.Env, "TERM="+ppty.Term)
 		if err := ppty.Start(cmd); err != nil {
 			io.WriteString(sess, err.Error()+"\n")
 			sess.Exit(1)
