@@ -8,50 +8,72 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// sessionEnv returns the environment a session's process is started with, with
-// PATH re-read from the registry.
-//
-// The relay runs as a Windows service, so os.Environ() is a snapshot taken when
-// the service started - usually at boot. A package manager installing something
-// later updates the machine PATH, but this process keeps the block it was born
-// with and every shell it spawns inherits the stale one. The symptom is a
-// terminal that cannot find a tool the machine plainly has, which reads as
-// "installed but broken" and costs an hour to explain.
-//
-// Windows composes a process PATH as machine value + user value, so both are
-// read. The user value is the one the service's own account owns, which is also
-// the account its children run as.
-func sessionEnv() []string {
-	machine := readRegistryPath(registry.LOCAL_MACHINE,
-		`SYSTEM\CurrentControlSet\Control\Session Manager\Environment`)
-	user := readRegistryPath(registry.CURRENT_USER, `Environment`)
+// The two keys Windows composes a session's environment from. The third source,
+// HKCU\Volatile Environment, is per logon session and is deliberately not read:
+// its values are already in the inherited block, and re-reading them from the
+// registry would substitute a copy for the live thing.
+const (
+	machineEnvKey = `SYSTEM\CurrentControlSet\Control\Session Manager\Environment`
+	userEnvKey    = `Environment`
+)
 
-	path := mergePath(machine, user)
-	if path == "" {
-		// Nothing readable: the inherited block is still better than no PATH.
-		return os.Environ()
-	}
-	return replaceEnv(os.Environ(), "PATH", path)
+// sessionEnv returns the environment a session's process is started with.
+//
+// The relay runs as a Windows service, so os.Environ() is a snapshot of the boot
+// it started in. A package manager installing something later writes the
+// registry, not this process, so every variable it changed stayed invisible to
+// every shell the relay spawned: PATH first, then PSModulePath, then whatever
+// home the next SDK set. A terminal that cannot find something the machine
+// plainly has is the failure this prevents.
+//
+// So the block is rebuilt the way Windows builds one, per session: the inherited
+// block as the base, machine entries over it, then the user's. composeEnv has the
+// order and the reasoning.
+func sessionEnv() []string {
+	base := os.Environ()
+
+	lookup := newEnvLookup(base)
+	machine := expandLayer(readEnvKey(registry.LOCAL_MACHINE, machineEnvKey), lookup)
+	user := expandLayer(readEnvKey(registry.CURRENT_USER, userEnvKey), lookup)
+
+	return composeEnv(base, machine, user)
 }
 
-// readRegistryPath reads one Path value and expands it. The machine PATH is
-// stored as REG_EXPAND_SZ and contains %SystemRoot% and friends, so the raw
-// value is not a usable PATH.
-func readRegistryPath(root registry.Key, subKey string) string {
+// readEnvKey reads every value of one Environment key, in the order the key
+// stores them.
+//
+// A value that cannot be read as a string is skipped rather than fatal: the key
+// can hold non-string types, and one of those is not a reason to hand the
+// session no environment at all.
+func readEnvKey(root registry.Key, subKey string) []envValue {
 	key, err := registry.OpenKey(root, subKey, registry.QUERY_VALUE)
 	if err != nil {
-		return ""
+		return nil
 	}
 	defer key.Close()
 
-	value, valueType, err := key.GetStringValue("Path")
+	names, err := key.ReadValueNames(-1)
 	if err != nil {
-		return ""
+		return nil
 	}
-	if valueType == registry.EXPAND_SZ {
-		if expanded, err := registry.ExpandString(value); err == nil {
-			return expanded
+	values := make([]envValue, 0, len(names))
+	for _, name := range names {
+		if name == "" {
+			continue
 		}
+		value, valueType, err := key.GetStringValue(name)
+		if err != nil {
+			continue
+		}
+		values = append(values, envValue{
+			name:       name,
+			value:      value,
+			expandable: valueType == registry.EXPAND_SZ,
+		})
 	}
-	return value
+	return values
 }
+
+// machineRegistryKey is split out so a test can name the hive without importing
+// the registry package itself.
+func machineRegistryKey() registry.Key { return registry.LOCAL_MACHINE }
