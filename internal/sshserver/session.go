@@ -109,14 +109,38 @@ func (s *Server) handleSession(sess ssh.Session) {
 			return
 		}
 	} else {
-		cmd.Stdin = sess
-		cmd.Stdout = sess
-		cmd.Stderr = sess.Stderr()
-		if err := cmd.Start(); err != nil {
+		// STDIN IS NOT THE SESSION. Assigning cmd.Stdin = sess makes os/exec spawn a
+		// stdin-copy goroutine, and cmd.Wait() waits for it: the copy reads from the
+		// SSH channel, which only reaches EOF when the CLIENT closes its write side.
+		// A client that keeps stdin open for the life of the channel -- termcp does
+		// exactly that -- therefore parks Wait forever. The command has exited, its
+		// bytes are all readable, and the sess.Exit below is never reached, so no
+		// exit-status travels back: the caller reports the channel as running for a
+		// process that finished minutes ago (termcp issue #283).
+		//
+		// StdinPipe() registers no copyFunc, so Wait does not wait on the copy; the
+		// copy runs in a goroutine of its own and may outlive the wait. This is the
+		// shape termcp's built-in sshd uses, and that one carries the regression test
+		// TestServer_PipeSession_StdinNeverClosed -- the extraction dropped the code
+		// and the test together, which is how this file had the bug back.
+		in, err := cmd.StdinPipe()
+		if err != nil {
 			io.WriteString(sess, err.Error()+"\n")
 			sess.Exit(1)
 			return
 		}
+		cmd.Stdout = sess
+		cmd.Stderr = sess.Stderr()
+		if err := cmd.Start(); err != nil {
+			_ = in.Close()
+			io.WriteString(sess, err.Error()+"\n")
+			sess.Exit(1)
+			return
+		}
+		go func() {
+			_, _ = io.Copy(in, sess)
+			_ = in.Close()
+		}()
 	}
 
 	_ = cmd.Wait()
