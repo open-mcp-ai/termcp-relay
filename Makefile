@@ -1,13 +1,21 @@
-# termcp-relay — build all platforms, test, clean.
+# termcp-relay — build, test, clean.
 #
-#   make        cross-compile every supported platform into dist/
+#   make        build dist/termcp-relay-$(GOOS)-$(GOARCH) for the host platform
 #   make test   vet + run all tests (same commands CI runs)
 #   make clean  remove build output
 #
+# Other targets: make GOOS=linux GOARCH=arm64  (defaults come from `go env`)
 # Needs GNU make and a POSIX shell (Git Bash / MSYS on Windows).
 
-PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
+.DEFAULT_GOAL := all
+
 DIST      := dist
+GOOS      ?= $(shell go env GOOS)
+GOARCH    ?= $(shell go env GOARCH)
+BIN       := termcp-relay-$(GOOS)-$(GOARCH)
+ifeq ($(GOOS),windows)
+BIN       := $(BIN).exe
+endif
 
 # Stamped into main.version; falls back to "dev" outside a git checkout.
 VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -17,15 +25,9 @@ LDFLAGS   := -s -w -X main.version=$(VERSION)
 
 all:
 	@mkdir -p $(DIST)
-	@set -e; for p in $(PLATFORMS); do \
-		os=$${p%/*}; arch=$${p#*/}; \
-		out="$(DIST)/termcp-relay-$$os-$$arch"; \
-		[ "$$os" = windows ] && out="$$out.exe" || true; \
-		echo "  $$out"; \
-		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 \
-			go build -trimpath -ldflags "$(LDFLAGS)" -o "$$out" .; \
-	done
-	@echo "built $(VERSION) for: $(PLATFORMS)"
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 \
+		go build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/$(BIN) .
+	@echo "built $(DIST)/$(BIN) ($(VERSION))"
 
 test:
 	go vet ./...
